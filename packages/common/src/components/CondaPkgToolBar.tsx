@@ -1,8 +1,13 @@
-import { HTMLSelect, InputGroup } from '@jupyterlab/ui-components';
-// import { ToolbarButtonComponent } from '@jupyterlab/ui-components';
+import {
+  HTMLSelect,
+  InputGroup,
+  ToolbarButtonComponent,
+  addIcon
+} from '@jupyterlab/ui-components';
 import * as React from 'react';
 import { classes, style } from 'typestyle/lib';
 import { CONDA_PACKAGES_TOOLBAR_CLASS } from '../constants';
+import { Conda } from '../tokens';
 // import {
 //   cartArrowDownIcon,
 //   externalLinkIcon,
@@ -13,9 +18,7 @@ import { CONDA_PACKAGES_TOOLBAR_CLASS } from '../constants';
 export const PACKAGE_TOOLBAR_HEIGHT = 40;
 
 export enum PkgFilters {
-  All = 'ALL',
   Installed = 'INSTALLED',
-  Available = 'AVAILABLE',
   Updatable = 'UPDATABLE',
   Selected = 'SELECTED'
 }
@@ -42,6 +45,10 @@ export interface ICondaPkgToolBarProps {
    */
   searchTerm: string;
   /**
+   * All packages (for filtering uninstalled packages)
+   */
+  packages: Conda.IPackage[];
+  /**
    * Filter category change handler
    */
   onCategoryChanged: (event: React.ChangeEvent<HTMLSelectElement>) => void;
@@ -65,6 +72,10 @@ export interface ICondaPkgToolBarProps {
    * Refresh available packages handler
    */
   onRefreshPackages: () => void;
+  /**
+   * Add packages handler (opens drawer)
+   */
+  onAddPackages: () => void;
 }
 
 export const CondaPkgToolBar = (props: ICondaPkgToolBarProps): JSX.Element => {
@@ -76,9 +87,7 @@ export const CondaPkgToolBar = (props: ICondaPkgToolBarProps): JSX.Element => {
           onChange={props.onCategoryChanged}
           aria-label="Package filter"
         >
-          <option value={PkgFilters.All}>All</option>
           <option value={PkgFilters.Installed}>Installed</option>
-          <option value={PkgFilters.Available}>Not installed</option>
           <option value={PkgFilters.Updatable}>Updatable</option>
           <option value={PkgFilters.Selected}>Selected</option>
         </HTMLSelect>
@@ -96,6 +105,18 @@ export const CondaPkgToolBar = (props: ICondaPkgToolBarProps): JSX.Element => {
         </div>
       </div>
       <div className="lm-Widget jp-Toolbar-spacer jp-Toolbar-item" />
+
+      {/* Add Packages Button */}
+      <ToolbarButtonComponent
+        icon={addIcon}
+        label="Packages"
+        tooltip="Add packages"
+        onClick={props.onAddPackages}
+        enabled={!props.isPending}
+        dataset={{ 'data-action': 'add-packages' }}
+        className={Style.AddPackagesButton}
+      />
+
       {/* <ToolbarButtonComponent
         icon={externalLinkIcon}
         tooltip="Update all packages"
@@ -141,5 +162,26 @@ namespace Style {
 
   export const Search = style({
     padding: '4px'
+  });
+
+  export const AddPackagesButton = style({
+    gap: '6px',
+    background: 'var(--jp-layout-color1)',
+    border: '1px solid var(--jp-border-color2)',
+    borderRadius: '6px',
+    padding: '2px 6px',
+    cursor: 'pointer',
+    transition:
+      'background-color .15s ease, border-color .15s ease, box-shadow .15s ease',
+    $nest: {
+      '&:hover': {
+        backgroundColor: 'var(--jp-layout-color2)',
+        borderColor: 'var(--jp-border-color1)',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+      },
+      '&:active': {
+        backgroundColor: 'var(--jp-layout-color3)'
+      }
+    }
   });
 }

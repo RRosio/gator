@@ -8,20 +8,21 @@ function normalizePackages(pkgs: Conda.IPackage[]): Conda.IPackage[] {
     return [];
   }
 
+  // Normalizing packages to include package info: name, version, build_number, build_string, summary, keywords, tags, version_installed, version_selected, updatable
+  // Other information available from the package info???
   return pkgs
     .map(p => {
       if (!p) {
         console.warn('normalizePackages: package is null/undefined', p);
         return null;
       }
-
+      console.log('normalizePackages: p is', p);
       return {
         ...p,
         // arrays you rely on in the UI
         version: Array.isArray(p.version)
           ? p.version
           : [String(p.version ?? '')],
-        // these might be number/string in raw API; make arrays like your list expects
         build_number: Array.isArray((p as any).build_number)
           ? (p as any).build_number
           : [Number((p as any).build_number ?? 0)],
@@ -30,17 +31,21 @@ function normalizePackages(pkgs: Conda.IPackage[]): Conda.IPackage[] {
           : [String((p as any).build_string ?? '')],
         // text fields used by search—force strings
         summary: p.summary ?? '',
+        home: p.home ?? 'https://repo.anaconda.com/pkgs/main/',
         keywords: String(p.keywords ?? '').toLowerCase(),
         tags: String(p.tags ?? '').toLowerCase(),
         // selection flags—always present
         version_installed: p.version_installed ?? '',
-        version_selected: p.version_selected ?? 'none',
+        version_selected:
+          p.version_selected ??
+          (p.version_installed ? p.version_installed : 'none'),
         updatable: !!p.updatable
       };
     })
     .filter(p => p !== null) as Conda.IPackage[];
 }
 
+// Marking packages as updatable if the version is greater than the version_installed
 function markUpdatable(pkgs: Conda.IPackage[]) {
   let hasUpdate = false;
   const list = pkgs.map(p => {
@@ -104,11 +109,15 @@ export async function primePackages(
   });
 
   try {
-    // installed (ignored here except you might merge later)
-    await pm.refresh(false, envName);
-
-    // available (your UI renders this)
+    // installed, isAvailable is false
+    const installed = await pm.refresh(false, envName);
+    console.log('primePackages: installed length is', installed.length);
+    console.log('primePackages: installed is', installed);
+    // available, isAvailable is true
     const available = await pm.refresh(true, envName);
+    console.log('primePackages: available length is', available.length);
+
+    // no available packages error logic
     if (!Array.isArray(available) || available.length === 0) {
       console.warn(
         'primePackages: available is empty or not an array',
@@ -125,9 +134,13 @@ export async function primePackages(
       return;
     }
 
+    // Include specific package information for the UI
     const normalized = normalizePackages(available);
+    // Compare the package versions avialable to the installed version to determine if the package is updatable
     const { list, hasUpdate } = markUpdatable(normalized);
-
+    console.log('primePackages: hasUpdate is', hasUpdate);
+    console.log('primePackages: list is', list);
+    // Emit the state, list of packages, hasUpdate, hasDescription... to the UI
     pm.emitState({
       environment: envName,
       isLoading: false,
@@ -148,6 +161,7 @@ export async function primePackages(
   }
 }
 
+// Apply package modifications, to mode: 'all' or 'selected', packages provided in a string array
 export async function applyPackageModification(
   model: IEnvironmentManager,
   envName: string,
@@ -174,17 +188,27 @@ export async function applyPackageModification(
 export async function updatePackagesUnified(
   model: IEnvironmentManager,
   envName: string,
-  opts: { mode: 'all' | 'selected'; names: string[] }
+  opts: {
+    mode: 'all' | 'selected';
+    names: string[];
+    version: string[] | undefined;
+  }
 ): Promise<void> {
   const pm = model.getPackageManager(envName);
-  const { mode, names } = opts;
+  const { mode, names, version } = opts;
 
+  console.log('updatePackagesUnified: envName is', envName);
+  console.log('updatePackagesUnified: mode is', mode);
+  console.log('updatePackagesUnified: names is', names);
+
+  // Emit the state, isLoading: true, phase: 'starting', as well as the 'mode'
   pm.emitState({
     environment: envName,
     isLoading: true,
     phase: 'starting',
     mode
   });
+  console.log('updatePackagesUnified: state emitted');
 
   const toastId = Notification.emit(
     mode === 'all'
@@ -192,12 +216,28 @@ export async function updatePackagesUnified(
       : `Updating ${names.length} package(s) in ${envName}`,
     'in-progress'
   );
+  console.log('updatePackagesUnified: toast emitted');
 
   try {
     if (mode === 'all') {
+      console.log('updatePackagesUnified: mode is all');
       await model.getPackageManager(envName).update(['--all'], envName);
     } else {
-      await model.getPackageManager(envName).update(names, envName);
+      console.log('updatePackagesUnified: mode is selected');
+
+      // Format package names with version if a version is selected
+      const packagesToUpdate = names.map((name, index) => {
+        if (version && version[index] && version[index] !== 'none') {
+          return `${name}=${version[index]}`;
+        }
+        return name;
+      });
+
+      console.log(
+        'updatePackagesUnified: packagesToUpdate is',
+        packagesToUpdate
+      );
+      await model.getPackageManager(envName).update(packagesToUpdate, envName);
     }
 
     pm.emitState({
@@ -250,7 +290,11 @@ export async function confirmAndUpdateAll(
     return;
   }
 
-  await updatePackagesUnified(model, envName, { mode: 'all', names: [] });
+  await updatePackagesUnified(model, envName, {
+    mode: 'all',
+    names: [],
+    version: []
+  });
 }
 
 export async function refreshAvailable(
@@ -271,6 +315,35 @@ export async function refreshAvailable(
       phase: 'success'
     });
     await primePackages(model, envName);
+  } catch (e) {
+    pm.emitState({
+      environment: envName,
+      isLoading: false,
+      phase: 'error',
+      message: String(e)
+    });
+    throw e;
+  }
+}
+
+export async function removePackages(
+  model: IEnvironmentManager,
+  envName: string,
+  packages: string[]
+): Promise<void> {
+  const pm = model.getPackageManager(envName);
+  pm.emitState({
+    environment: envName,
+    isLoading: true,
+    phase: 'starting'
+  });
+  try {
+    await pm.remove(packages, envName);
+    pm.emitState({
+      environment: envName,
+      isLoading: false,
+      phase: 'success'
+    });
   } catch (e) {
     pm.emitState({
       environment: envName,

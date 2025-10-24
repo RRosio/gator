@@ -52,6 +52,10 @@ export interface IPkgListProps {
    * Environment name
    */
   envName: string;
+  /**
+   * Is this component used in a drawer (simplified mode)?
+   */
+  isDrawer?: boolean;
 }
 
 const toArray = <T,>(x: T | T[] | null | undefined): T[] =>
@@ -76,10 +80,10 @@ export const createMenu = (
   console.log('Available commands:', commands.listCommands());
 
   const commandsToAdd = [
+    'gator-lab:pkg-remove',
     'gator-lab:pkg-update-all-confirm',
     'gator-lab:pkg-update',
-    'gator-lab:pkg-refresh-available',
-    'gator-lab:pkg-apply-modifications'
+    'gator-lab:pkg-refresh-available'
   ];
 
   commandsToAdd.forEach(cmd => {
@@ -90,24 +94,19 @@ export const createMenu = (
     }
   });
 
-  // menu.addItem({
-  //   command: 'gator-lab:pkg-update-all-confirm',
-  //   args: { names: packageNames }
-  // });
-
   menu.addItem({
-    command: 'gator-lab:pkg-update',
-    args: { env: envName, names: packageNames }
+    command: 'gator-lab:pkg-remove',
+    args: { names: packageNames }
   });
 
-  // menu.addItem({
-  //   command: 'gator-lab:pkg-refresh-available',
-  //   args: {}
-  // });
-
+  // check if updatable? and only add command then?
   menu.addItem({
-    command: 'gator-lab:pkg-apply-modifications',
-    args: { env: envName, pkgNames: packageNames }
+    command: 'gator-lab:pkg-update',
+    args: {
+      env: envName,
+      names: packageNames,
+      versions: packages.map(pkg => pkg.version_selected)
+    }
   });
 
   // Ensure menu has proper styling
@@ -262,6 +261,39 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
 
   protected changeRender = (pkg: Conda.IPackage): JSX.Element => {
     const versions = getVersions(pkg);
+
+    // In drawer mode, only show install options for uninstalled packages
+    if (this.props.isDrawer) {
+      return (
+        <div className={'lm-Widget'}>
+          <HTMLSelect
+            className={classes(
+              Style.VersionSelection,
+              CONDA_PACKAGE_SELECT_CLASS
+            )}
+            value={pkg.version_selected}
+            onClick={(evt: React.MouseEvent): void => {
+              evt.stopPropagation();
+            }}
+            onChange={(evt: React.ChangeEvent<HTMLSelectElement>): void =>
+              this.props.onPkgChange(pkg, evt.target.value)
+            }
+            aria-label="Package versions"
+          >
+            <option key="0" value={''}>
+              Automatic
+            </option>
+            {versions.map(v => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </HTMLSelect>
+        </div>
+      );
+    }
+
+    // Original logic for main panel
     return (
       <div className={'lm-Widget'}>
         <HTMLSelect
@@ -302,6 +334,25 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
   };
 
   protected iconRender = (pkg: Conda.IPackage): JSX.Element => {
+    // In drawer mode, only show install status
+    if (this.props.isDrawer) {
+      if (pkg.version_selected && pkg.version_selected !== 'none') {
+        return (
+          <FontAwesomeIcon
+            icon="check-square"
+            style={{ color: 'var(--jp-brand-color1)' }}
+          />
+        );
+      }
+      return (
+        <FontAwesomeIcon
+          icon={['far', 'square']}
+          style={{ color: 'var(--jp-ui-font-color2)' }}
+        />
+      );
+    }
+
+    // Original logic for main panel
     if (pkg.version_installed) {
       if (pkg.version_selected === 'none') {
         return (
@@ -342,6 +393,12 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
   };
 
   protected isSelected(pkg: Conda.IPackage): boolean {
+    // In drawer mode, only check if package is selected for installation
+    if (this.props.isDrawer) {
+      return pkg.version_selected && pkg.version_selected !== 'none';
+    }
+
+    // Original logic for main panel
     if (pkg.version_installed) {
       if (pkg.version_selected === 'none') {
         return true;
@@ -436,6 +493,15 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
           </div>
         )}
         <div className={classes(Style.Cell, Style.VersionSize)} role="gridcell">
+          {this.versionRender(pkg)}
+        </div>
+        <div
+          className={classes(Style.Cell, Style.ChangeSize)}
+          role="gridcell"
+          onClick={(evt: React.MouseEvent): void => {
+            evt.stopPropagation();
+          }}
+        >
           {this.changeRender(pkg)}
         </div>
         <div
@@ -445,21 +511,19 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
         >
           {pkg.channel}
         </div>
-        <div
-          className={classes(Style.Cell, Style.ChangeSize)}
-          role="gridcell"
-        ></div>
-        <div
-          className={Style.KebabButton}
-          onClick={(event: React.MouseEvent) =>
-            this.handleMenuClick(event, pkg)
-          }
-          title="Package actions"
-          aria-label={`Actions for ${pkg.name} package`}
-          aria-haspopup="menu"
-        >
-          <ToolbarButtonComponent icon={ellipsisVerticalIcon} />
-        </div>
+        {!this.props.isDrawer && (
+          <div
+            className={Style.KebabButton}
+            onClick={(event: React.MouseEvent) =>
+              this.handleMenuClick(event, pkg)
+            }
+            title="Package actions"
+            aria-label={`Actions for ${pkg.name} package`}
+            aria-haspopup="menu"
+          >
+            <ToolbarButtonComponent icon={ellipsisVerticalIcon} />
+          </div>
+        )}
       </div>
     );
   };
@@ -485,6 +549,11 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
       );
     }
 
+    // Create a unique key based on the data to force re-render
+    const dataKey = `${items.length}-${items[0]?.name ?? 'empty'}-${
+      items[items.length - 1]?.name ?? 'empty'
+    }`;
+
     return (
       <div
         id={CONDA_PACKAGES_PANEL_ID}
@@ -499,6 +568,8 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
             width: number;
             height: number;
           }): JSX.Element => {
+            const listHeight = Math.max(0, height - HEADER_HEIGHT);
+
             return (
               <>
                 <div
@@ -534,23 +605,27 @@ export class CondaPkgList extends React.Component<IPkgListProps> {
                     className={classes(Style.Cell, Style.ChangeSize)}
                     role="columnheader"
                   >
-                    Channel
+                    Action
                   </div>
                   <div
                     className={classes(Style.Cell, Style.ChannelSize)}
                     role="columnheader"
                   >
-                    Build
+                    Channel
                   </div>
                 </div>
                 <FixedSizeList
-                  height={Math.max(0, height - HEADER_HEIGHT)}
-                  overscanCount={3}
+                  key={dataKey}
+                  height={listHeight}
+                  overscanCount={5}
                   itemCount={items.length}
                   itemData={items}
-                  itemKey={(index, data) => data[index]?.name ?? String(index)}
+                  itemKey={(index, data) =>
+                    `${data[index]?.name ?? 'empty'}-${index}`
+                  }
                   itemSize={40}
                   width={width}
+                  useIsScrolling={true}
                 >
                   {this.rowRenderer}
                 </FixedSizeList>

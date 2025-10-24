@@ -6,7 +6,8 @@ import {
   updatePackagesUnified,
   confirmAndUpdateAll,
   refreshAvailable,
-  applyPackageModification
+  applyPackageModification,
+  removePackages
 } from '../packageActions';
 
 type NamesArg = string[] | '*' | undefined;
@@ -75,6 +76,7 @@ export function registerPkgCommands({
       console.log(' gator-lab:pkg-update mode', mode);
       console.log('names', names);
       console.log('args', args);
+      // might need the latest version number or just the version selected in dropdown?
       console.log('gator-lab:pkg-update env', env);
       return mode === 'all'
         ? 'Update All Packages'
@@ -111,12 +113,18 @@ export function registerPkgCommands({
         env as string,
         getSelectedNames
       );
-      console.log('gator-lab:pkg-update mode', mode);
-      console.log('gator-lab:pkg-update names', names);
+      const versions = args?.versions as string[] | undefined;
+
       console.log('gator-lab:pkg-update args', args);
-      console.log('gator-lab:pkg-update env', env);
-      console.log('calling updatePackagesUnified');
-      await updatePackagesUnified(model, env as string, { mode, names });
+      console.log('gator-lab:pkg-update versions', versions);
+      console.log(
+        `calling updatePackagesUnified with mode: ${mode}, names: ${names}, versions: ${versions} and env: ${env}`
+      );
+      await updatePackagesUnified(model, env as string, {
+        mode,
+        names,
+        version: versions
+      });
     }
   });
 
@@ -137,6 +145,41 @@ export function registerPkgCommands({
       const env = getActiveEnvName()!;
       console.log('gator-lab:pkg-refresh-available env', env);
       await refreshAvailable(model, env);
+    }
+  });
+
+  commands.addCommand('gator-lab:pkg-remove', {
+    label: 'Remove Package',
+    isEnabled: args => {
+      console.log('ADDING COMMAND   gator-lab:pkg-remove args', args);
+      let env = getActiveEnvName();
+      if (!env) {
+        env = args?.env as string;
+      }
+      if (!env) {
+        console.log('DISABLEDgator-lab:pkg-remove env is false');
+        return false;
+      }
+      console.log('gator-lab:pkg-remove env', env);
+      console.log('ENABLEDgator-lab:pkg-remove env is true');
+      return true;
+    },
+    execute: async args => {
+      console.log('gator-lab:pkg-remove args', args);
+      let env = getActiveEnvName()!;
+      if (!env) {
+        env = args?.env as string;
+      }
+      if (!env) {
+        console.log('gator-lab:pkg-remove env is false');
+        return false;
+      }
+      console.log('gator-lab:pkg-remove env', env);
+
+      const names = args?.names as string[];
+      console.log('gator-lab:pkg-remove names', names);
+      // remove a single package
+      await removePackages(model, env, names);
     }
   });
 }

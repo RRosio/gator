@@ -4,6 +4,7 @@ import semver from 'semver';
 import { style } from 'typestyle';
 import { Conda } from '../tokens';
 import { CondaPkgList } from './CondaPkgList';
+import { CondaPkgDrawer } from './CondaPkgDrawer';
 import {
   CondaPkgToolBar,
   PACKAGE_TOOLBAR_HEIGHT,
@@ -81,6 +82,10 @@ export interface IPkgPanelState {
    * Current search term
    */
   searchTerm: string;
+  /**
+   * Is the package drawer open?
+   */
+  isDrawerOpen: boolean;
 }
 
 /** Top level React component for widget */
@@ -98,7 +103,8 @@ export class CondaPkgPanel extends React.Component<
       packages: [],
       selected: [],
       searchTerm: '',
-      activeFilter: PkgFilters.Installed
+      activeFilter: PkgFilters.Installed,
+      isDrawerOpen: false
     };
 
     this._model = this.props.packageManager;
@@ -111,6 +117,21 @@ export class CondaPkgPanel extends React.Component<
     this.handleApply = this.handleApply.bind(this);
     this.handleCancel = this.handleCancel.bind(this);
     this.handleRefreshPackages = this.handleRefreshPackages.bind(this);
+
+    this.handleCloseDrawer = this.handleCloseDrawer.bind(this);
+    this.handleAddPackages = this.handleAddPackages.bind(this);
+  }
+
+  handleCloseDrawer(): void {
+    this.setState({
+      isDrawerOpen: false
+    });
+  }
+
+  handleAddPackages(): void {
+    this.setState({
+      isDrawerOpen: true
+    });
   }
 
   private async _updatePackages(): Promise<void> {
@@ -435,9 +456,7 @@ export class CondaPkgPanel extends React.Component<
           onApply={this.handleApply}
           onCancel={this.handleCancel}
           onRefreshPackages={this.handleRefreshPackages}
-          onAddPackages={function (): void {
-            throw new Error('Function not implemented.');
-          }}
+          onAddPackages={this.handleAddPackages}
         />
         <div
           style={{
@@ -447,17 +466,41 @@ export class CondaPkgPanel extends React.Component<
             overflow: 'hidden'
           }}
         >
-          <CondaPkgList
-            height={this.props.height - PACKAGE_TOOLBAR_HEIGHT}
-            hasDescription={
-              this.state.hasDescription && this.props.width > PANEL_SMALL_WIDTH
-            }
-            packages={searchPkgs}
-            isLoading={this.state.isLoading}
-            onPkgClick={this.handleClick}
-            onPkgChange={this.handleVersionSelection}
-            onPkgGraph={this.handleDependenciesGraph}
-          />
+          {/* Conditionally render List or Drawer */}
+          {this.state.isDrawerOpen ? (
+            <CondaPkgDrawer
+              // isOpen={this.state.isDrawerOpen}
+              // commands={new CommandRegistry()}
+              // envName={''}
+              // onInstall={function (packages: Conda.IPackage[]): void {
+              //   throw new Error('Function not implemented.');
+              // }}
+              height={this.props.height - PACKAGE_TOOLBAR_HEIGHT}
+              hasDescription={
+                this.state.hasDescription &&
+                this.props.width > PANEL_SMALL_WIDTH
+              }
+              packages={searchPkgs}
+              isLoading={this.state.isLoading}
+              onPkgClick={this.handleClick}
+              onPkgChange={this.handleVersionSelection}
+              onPkgGraph={this.handleDependenciesGraph}
+              onClose={this.handleCloseDrawer}
+            />
+          ) : (
+            <CondaPkgList
+              height={this.props.height - PACKAGE_TOOLBAR_HEIGHT}
+              hasDescription={
+                this.state.hasDescription &&
+                this.props.width > PANEL_SMALL_WIDTH
+              }
+              packages={searchPkgs}
+              isLoading={this.state.isLoading}
+              onPkgClick={this.handleClick}
+              onPkgChange={this.handleVersionSelection}
+              onPkgGraph={this.handleDependenciesGraph}
+            />
+          )}
         </div>
       </div>
     );

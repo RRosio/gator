@@ -435,6 +435,9 @@ export class CondaPkgPanel extends React.Component<
           onApply={this.handleApply}
           onCancel={this.handleCancel}
           onRefreshPackages={this.handleRefreshPackages}
+          onAddPackages={function (): void {
+            throw new Error('Function not implemented.');
+          }}
         />
         <div
           style={{

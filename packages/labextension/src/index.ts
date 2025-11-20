@@ -122,6 +122,8 @@ async function activateCondaEnv(
     icon: condaIcon
   });
 
+  // registerEnvCommands(commands, model, shell);
+  // TODO: remove this line, use shell parameter instead
   registerEnvCommands(commands, model);
 
   if (launcher) {

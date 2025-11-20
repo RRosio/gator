@@ -38,6 +38,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
     content.title.icon = condaIcon;
     const widget = new MainAreaWidget({ content: content });
     widget.id = 'mamba-gator-navigator';
+    // registerEnvCommands(app.commands, model, app.shell);
+    // TODO: remove this line, use shell parameter instead
     registerEnvCommands(app.commands, model);
     widget.title.closable = false;
     app.shell.add(widget, 'main');

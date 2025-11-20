@@ -1,73 +1,94 @@
-import { Dialog, Notification, showDialog } from '@jupyterlab/apputils';
+import {
+  Dialog,
+  Notification,
+  ReactWidget,
+  showDialog
+} from '@jupyterlab/apputils';
 import { Widget } from '@lumino/widgets';
+import { CreateEnvDrawer } from './components/CreateEnvDrawer';
 import { IEnvironmentManager } from './tokens';
+import React from 'react';
 
 export async function createEnvironment(
   model: IEnvironmentManager,
-  environmentName: string | undefined
+  environmentName: string | undefined,
+  shell?: any
 ): Promise<void> {
-  let toastId = '';
-  try {
-    const body = document.createElement('div');
-    const nameLabel = document.createElement('label');
-    nameLabel.textContent = 'Name : ';
-    const nameInput = document.createElement('input');
-    body.appendChild(nameLabel);
-    body.appendChild(nameInput);
-
-    const typeLabel = document.createElement('label');
-    typeLabel.textContent = 'Type : ';
-    const typeInput = document.createElement('select');
-    for (const kernelType of model.environmentTypes) {
-      const option = document.createElement('option');
-      option.setAttribute('value', kernelType);
-      option.innerText = kernelType;
-      typeInput.appendChild(option);
-    }
-    body.appendChild(typeLabel);
-    body.appendChild(typeInput);
-
-    const response = await showDialog({
-      title: 'New Environment',
-      body: new Widget({ node: body }),
-      buttons: [Dialog.cancelButton(), Dialog.okButton()]
-    });
-    if (response.button.accept) {
-      if (nameInput.value.length === 0) {
-        throw new Error('A environment name should be provided.');
-      }
-      toastId = Notification.emit(
-        `Creating environment ${nameInput.value}`,
-        'in-progress'
+  // Preferred path: using MainAreaWidget
+  if (shell) {
+    try {
+      const content = ReactWidget.create(
+        <CreateEnvDrawer
+          model={model}
+          onClose={() => {
+            content.dispose();
+          }}
+          onEnvironmentCreated={envName => {
+            content.dispose();
+          }}
+        />
       );
-      await model.create(nameInput.value, typeInput.value);
-      Notification.update({
-        id: toastId,
-        message: `Environment ${nameInput.value} has been created.`,
-        type: 'success',
-        autoClose: 5000
-      });
-    }
-  } catch (error) {
-    if (error !== 'cancelled') {
-      console.error(error);
-      if (toastId) {
-        Notification.update({
-          id: toastId,
-          message: (error as any).message,
-          type: 'error',
-          autoClose: false
-        });
-      } else {
-        Notification.error((error as any).message);
+
+      // Mount directly in the main area
+      if (shell) {
+        shell.add(content, 'main');
       }
-    } else {
-      if (toastId) {
-        Notification.dismiss(toastId);
+    } catch (error) {
+      console.error(error);
+      Notification.error((error as any).message);
+    }
+  } else {
+    // TODO: Test this fallback path
+    // TODO: remove this fallback path in a future version
+    // Deprecated fallback path: using Dialog
+    console.warn(
+      '[Gator] DEPRECATION WARNING: createEnvironment called without shell parameter. ' +
+        'This fallback to Dialog mode is deprecated and will be removed in a future version. ' +
+        'Please update your code to pass the shell parameter: ' +
+        'registerEnvCommands(commands, model, shell). ' +
+        'See: https://github.com/mamba-org/gator/issues/XXX'
+    );
+
+    // Use a ref object so the closure can access the dialog after it's created
+    const dialogRef: { current: Dialog<any> | null } = { current: null };
+
+    try {
+      const body = ReactWidget.create(
+        <CreateEnvDrawer
+          model={model}
+          onClose={() => {
+            if (dialogRef.current) {
+              dialogRef.current.dispose();
+            }
+          }}
+          onEnvironmentCreated={envName => {
+            if (dialogRef.current) {
+              dialogRef.current.dispose();
+            }
+          }}
+        />
+      );
+
+      const dialog = new Dialog({
+        title: 'Create Environment',
+        body,
+        buttons: []
+      });
+
+      // Assign to ref so callbacks can access it
+      dialogRef.current = dialog;
+
+      dialog.addClass('jp-NbConda-CreateEnvDialog');
+      await dialog.launch();
+    } catch (error) {
+      if (error !== 'cancelled') {
+        console.error(error);
+        Notification.error((error as any).message);
       }
     }
   }
 }
+
 export async function cloneEnvironment(
   model: IEnvironmentManager,
   environmentName: string | undefined

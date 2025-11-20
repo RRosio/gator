@@ -16,13 +16,14 @@ import {
 
 export function registerEnvCommands(
   commands: CommandRegistry,
-  model: IEnvironmentManager
+  model: IEnvironmentManager,
+  shell?: any // TODO: type properly
 ) {
   commands.addCommand('gator-lab:create-env', {
     label: 'Create Environment',
     execute: async args => {
       const name = args['name'] as string;
-      await createEnvironment(model, name);
+      await createEnvironment(model, name, shell);
     }
   });
 

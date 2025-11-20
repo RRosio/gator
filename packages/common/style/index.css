@@ -170,3 +170,54 @@ div[data-loading="true"] jp-button[aria-label="Refresh"] svg {
   color: var(--jp-ui-font-color1);
 }
 /* ==================================== */
+
+/* Create Environment Drawer Dialog */
+.jp-NbConda-CreateEnvDialog .jp-Dialog {
+  /* Don't cover the whole viewport - leave room for menu bar and status bar */
+  width: calc(100vw - var(--jp-private-sidebar-width, 0px));
+  height: calc(100vh - var(--jp-private-toolbar-height, 0px) - var(--jp-private-statusbar-height, 0px));
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  
+  /* Position it in the main area */
+  position: fixed;
+  top: var(--jp-private-toolbar-height, 0px);
+  left: var(--jp-private-sidebar-width, 0px);
+  right: 0;
+  bottom: var(--jp-private-statusbar-height, 0px);
+}
+
+.jp-NbConda-CreateEnvDialog .jp-Dialog-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.jp-NbConda-CreateEnvDialog .jp-Dialog-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.jp-NbConda-CreateEnvDialog .jp-Dialog-header {
+  display: none; /* Hide since drawer has its own header */
+}
+
+.jp-NbConda-CreateEnvDialog .jp-Dialog-footer {
+  display: none; /* This hides dialog buttons! Remove if you want them */
+}
+
+/* Make sure the drawer's own footer is visible */
+.jp-NbConda-CreateEnvDialog .jp-Dialog-body > div {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
